@@ -356,18 +356,18 @@ function viewRecipeForm(id, beanIdForNew) {
   const text = (k, label, list, ph = '') => `<label class="field"><span>${label}</span>
     <input name="${k}" value="${esc(draft[k] ?? '')}" placeholder="${esc(ph)}" ${list ? `list="dl-${k}" autocomplete="off"` : ''}>
     ${list ? datalist(`dl-${k}`, suggestions('recipes', k)) : ''}</label>`;
-  const numberField = (k, label, suffix, prefix = '') => `<label class="field"><span>${label}</span>
-    <div class="with-suffix">${prefix ? `<span>${prefix}</span>` : ''}<input name="${k}" type="number" inputmode="decimal" step="any" min="0" value="${esc(draft[k] ?? '')}"><span>${suffix}</span></div></label>`;
+  const numberField = (k, label, suffix, prefix = '', step = 'any') => `<label class="field"><span>${label}</span>
+    <div class="with-suffix">${prefix ? `<span>${prefix}</span>` : ''}<input name="${k}" type="number" inputmode="decimal" step="${step}" min="0" value="${esc(draft[k] ?? '')}"><span>${suffix}</span></div></label>`;
 
   $app.innerHTML = `${topbar({ back: existing ? `#/recipe/${id}` : `#/bean/${bean.id}`, title: existing ? 'レシピを編集' : 'レシピを追加' })}
     <main class="wrap">
       <p class="crumb">${esc(bean.name)}</p>
-      <form class="form" id="f">
+      <form class="form" id="f" novalidate>
         <div class="panel">
           <label class="field full"><span>レシピ名</span><input name="name" value="${esc(draft.name || '')}" placeholder="例: 4:6メソッド（空欄なら自動）"></label>
           <div class="grid three">
             ${numberField('dose', 'グラム数（豆）', 'g')}
-            ${numberField('ratio', 'レシオ', '', '1 :')}
+            ${numberField('ratio', 'レシオ', '', '1 :', '0.5')}
             ${numberField('temp', '湯温', '℃')}
           </div>
           <p class="calc" id="total"></p>
