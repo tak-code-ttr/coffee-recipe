@@ -387,7 +387,8 @@ function viewRecipeForm(id, beanIdForNew) {
           <p class="calc" id="pctsum"></p>
           <div class="grid">
             <label class="field"><span>トータル時間（落ち切り・任意）</span>
-              <div class="with-suffix"><input name="totalTime" type="number" inputmode="numeric" min="0" value="${esc(draft.totalTime ?? '')}" placeholder="例: 210"><span>秒</span></div></label>
+              <div class="with-suffix"><input name="totalTime" type="number" inputmode="numeric" min="0" value="${esc(draft.totalTime ?? '')}" placeholder="例: 210"><span>秒</span></div>
+              <small class="time-hint" id="totalTimeHint"></small></label>
           </div>
         </div>
         <div class="panel">
@@ -517,6 +518,12 @@ function viewRecipeForm(id, beanIdForNew) {
     renderPours();
   };
   el('dose').oninput = el('ratio').oninput = updateCalc;
+  const updateTotalTimeHint = () => {
+    const s = num(el('totalTime').value);
+    document.getElementById('totalTimeHint').textContent = s != null ? fmtTime(s) : '';
+  };
+  el('totalTime').oninput = updateTotalTimeHint;
+  updateTotalTimeHint();
 
   const $rating = document.getElementById('rating');
   const renderRating = () => {

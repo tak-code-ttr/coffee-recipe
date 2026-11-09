@@ -178,7 +178,8 @@ textarea { resize: vertical; }
 .pour-row { padding: 6px 0; border-top: 1px solid var(--border); }
 .pour-n { font-weight: 700; text-align: center; }
 .pour-sec { display: flex; flex-direction: column; }
-.pour-sec small { color: var(--muted); font-size: .72rem; padding-left: 4px; }
+.pour-sec small, .time-hint { color: var(--muted); font-size: .72rem; padding-left: 4px; }
+.time-hint { min-height: 1.1em; }
 .pour-out { font-size: .85rem; text-align: right; font-variant-numeric: tabular-nums; }
 .pour-row input { padding: 8px; text-align: right; }
 .icon-x { border: 0; background: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; padding: 0; }
