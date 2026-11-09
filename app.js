@@ -374,7 +374,7 @@ function viewRecipeForm(id, beanIdForNew) {
         </div>
         <div class="panel grid">
           ${text('grinder', 'グラインダーの種類', true, '例: コマンダンテ C40')}
-          ${text('grind', '挽き目', false, '例: 24クリック')}
+          ${text('grind', '挽き目（クリック数）', false, '例: 24')}
           ${text('dripper', 'ドリッパー', true, '例: HARIO V60')}
           ${text('filter', 'フィルター', true, '例: V60 01 漂白')}
         </div>
