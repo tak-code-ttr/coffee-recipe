@@ -28,6 +28,14 @@ const BEAN_FIELDS = [
   { k: 'memo', label: 'メモ', type: 'textarea' },
 ];
 
+// 注湯の入力方法。保存は常に「各投の割合(%)」で、ほかの形式は入力時に換算する。
+const POUR_MODES = [
+  { k: 'pct', tab: '割合 %', head: '割合(%)' },
+  { k: 'cumPct', tab: '累計 %', head: '累計(%)' },
+  { k: 'g', tab: '湯量 g', head: '湯量(g)' },
+  { k: 'cumG', tab: '累計 g', head: '累計(g)' },
+];
+
 const DEFAULT_POURS = [
   { sec: 0, pct: 20 }, { sec: 45, pct: 20 }, { sec: 90, pct: 20 }, { sec: 130, pct: 20 }, { sec: 170, pct: 20 },
 ];
@@ -55,11 +63,13 @@ function roastAge(date) {
 
 function calc(r) {
   const total = (num(r.dose) || 0) * (num(r.ratio) || 0);
-  let cum = 0;
+  let cum = 0, cumPct = 0;
   const pours = (r.pours || []).map((p, i) => {
-    const g = total * (num(p.pct) || 0) / 100;
+    const pct = num(p.pct) || 0;
+    const g = total * pct / 100;
     cum += g;
-    return { ...p, n: i + 1, g, cum };
+    cumPct += pct;
+    return { ...p, n: i + 1, g, cum, cumPct };
   });
   const pctSum = r1(pours.reduce((a, p) => a + (num(p.pct) || 0), 0));
   return { total, pours, pctSum };
@@ -302,8 +312,8 @@ function viewRecipe(id) {
       <div class="section-head"><h2>注湯（${pours.length}投）</h2></div>
       <div class="panel table-wrap">
         <table class="pours">
-          <thead><tr><th>投</th><th>開始</th><th>割合</th><th>湯量</th><th>累計</th></tr></thead>
-          <tbody>${pours.map((p) => `<tr><td>${p.n}</td><td>${fmtTime(p.sec)}</td><td>${p.pct ?? 0}%</td><td>${fmtG(p.g)}</td><td><b>${fmtG(p.cum)}</b></td></tr>`).join('')}</tbody>
+          <thead><tr><th>投</th><th>開始</th><th>割合</th><th>累計%</th><th>湯量</th><th>累計</th></tr></thead>
+          <tbody>${pours.map((p) => `<tr><td>${p.n}</td><td>${fmtTime(p.sec)}</td><td>${r1(num(p.pct) || 0)}%</td><td>${r1(p.cumPct)}%</td><td>${fmtG(p.g)}</td><td><b>${fmtG(p.cum)}</b></td></tr>`).join('')}</tbody>
         </table>
         ${pctSum !== 100 ? `<p class="warn">割合の合計が ${pctSum}% です（100%ではありません）</p>` : ''}
       </div>
@@ -370,7 +380,8 @@ function viewRecipeForm(id, beanIdForNew) {
         </div>
         <div class="panel">
           <div class="section-head tight"><h2>注湯</h2><button type="button" class="btn small" id="even">割合を均等に</button></div>
-          <div class="pour-head"><span>投</span><span>開始(秒)</span><span>割合(%)</span><span>湯量 / 累計</span><span></span></div>
+          <div class="seg" id="mode" aria-label="注湯の入力方法">${POUR_MODES.map((m) => `<button type="button" data-mode="${m.k}">${m.tab}</button>`).join('')}</div>
+          <div class="pour-head"><span>投</span><span>開始(秒)</span><span id="mode-head"></span><span>割合・湯量 / 累計</span><span></span></div>
           <div id="pours"></div>
           <button type="button" class="btn small block" id="add">＋ 1投追加</button>
           <p class="calc" id="pctsum"></p>
@@ -396,13 +407,52 @@ function viewRecipeForm(id, beanIdForNew) {
   const $pours = document.getElementById('pours');
   const readTop = () => { draft.dose = num(el('dose').value); draft.ratio = num(el('ratio').value); };
 
+  let mode = 'pct';
+  try { mode = localStorage.getItem('pourInputMode') || 'pct'; } catch { /* 保存不可の環境 */ }
+  if (!POUR_MODES.some((m) => m.k === mode)) mode = 'pct';
+  const usesGrams = () => mode === 'g' || mode === 'cumG';
+  const round4 = (n) => Math.round(n * 10000) / 10000;
+  const modeValue = (p) => r1({ pct: num(p.pct) || 0, cumPct: p.cumPct, g: p.g, cumG: p.cum }[mode]);
+
+  // 選択中の形式で入力された値を、その投の割合(%)に換算して反映する
+  function applyValue(i, v) {
+    const total = (num(draft.dose) || 0) * (num(draft.ratio) || 0);
+    const pcts = draft.pours.map((p) => num(p.pct) || 0);
+    const before = pcts.slice(0, i).reduce((a, b) => a + b, 0);
+    const gToPct = (g) => (total ? (g / total) * 100 : null);
+    const next = {
+      pct: v,
+      cumPct: v - before,
+      g: gToPct(v),
+      cumG: total ? gToPct(v) - before : null,
+    }[mode];
+    if (next == null) return;
+    const diff = next - pcts[i];
+    draft.pours[i].pct = round4(next);
+    // 累計で入力したときは、次の投で差を吸収して後ろの投の累計を変えない
+    if ((mode === 'cumPct' || mode === 'cumG') && draft.pours[i + 1]) {
+      draft.pours[i + 1].pct = round4(pcts[i + 1] - diff);
+    }
+  }
+
   function updateCalc() {
     readTop();
     const { total, pours, pctSum } = calc(draft);
     document.getElementById('total').innerHTML = total ? `総湯量 <b>${fmtG(total)}</b>` : 'グラム数とレシオを入れると総湯量を計算します';
     pours.forEach((p, i) => {
+      const input = $pours.querySelector(`input[data-f="val"][data-i="${i}"]`);
+      if (input) {
+        const off = usesGrams() && !total;
+        input.disabled = off;
+        input.placeholder = off ? '総湯量なし' : '';
+        // 入力中の欄は書き換えない（カーソルが飛ぶため）
+        if (input !== document.activeElement) input.value = off ? '' : modeValue(p);
+      }
       const cell = $pours.querySelector(`[data-out="${i}"]`);
-      if (cell) cell.innerHTML = `${fmtG(p.g)} / <b>${fmtG(p.cum)}</b>`;
+      if (cell) {
+        cell.innerHTML = `${r1(num(p.pct) || 0)}% · ${fmtG(p.g)}<br><small>累計 ${r1(p.cumPct)}% · <b>${fmtG(p.cum)}</b></small>`;
+        cell.classList.toggle('neg', (num(p.pct) || 0) < 0);
+      }
       const t = $pours.querySelector(`[data-time="${i}"]`);
       if (t) t.textContent = fmtTime(num(p.sec) || 0);
     });
@@ -415,19 +465,38 @@ function viewRecipeForm(id, beanIdForNew) {
     $pours.innerHTML = draft.pours.map((p, i) => `<div class="pour-row">
       <span class="pour-n">${i + 1}</span>
       <span class="pour-sec"><input type="number" inputmode="numeric" min="0" data-i="${i}" data-f="sec" value="${esc(p.sec ?? '')}"><small data-time="${i}"></small></span>
-      <input type="number" inputmode="decimal" step="any" min="0" data-i="${i}" data-f="pct" value="${esc(p.pct ?? '')}">
+      <input type="number" inputmode="decimal" step="any" data-i="${i}" data-f="val">
       <span class="pour-out" data-out="${i}"></span>
       <button type="button" class="icon-x" data-del="${i}" aria-label="${i + 1}投目を削除">×</button>
     </div>`).join('') || '<p class="empty small">注湯がありません</p>';
     updateCalc();
   }
 
+  const $mode = document.getElementById('mode');
+  const renderMode = () => {
+    $mode.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.mode === mode));
+    document.getElementById('mode-head').textContent = POUR_MODES.find((m) => m.k === mode).head;
+  };
+  $mode.onclick = (e) => {
+    const k = e.target.dataset.mode;
+    if (!k) return;
+    mode = k;
+    try { localStorage.setItem('pourInputMode', k); } catch { /* 保存不可の環境 */ }
+    renderMode();
+    updateCalc();
+  };
+  renderMode();
+
   $pours.oninput = (e) => {
     const { i, f } = e.target.dataset;
     if (i == null) return;
-    draft.pours[i][f] = num(e.target.value);
+    const v = num(e.target.value);
+    if (f === 'sec') draft.pours[i].sec = v;
+    else if (v != null) applyValue(+i, v);
     updateCalc();
   };
+  // 入力欄を離れたら表示を整える（丸めなど）
+  $pours.addEventListener('focusout', () => setTimeout(updateCalc));
   $pours.onclick = (e) => {
     const d = e.target.dataset.del;
     if (d == null) return;
