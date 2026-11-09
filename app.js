@@ -76,6 +76,20 @@ function calc(r) {
 }
 
 // 過去に入力した値 + プリセットを候補にする
+// 過去に使った値を「使った回数が多い順 → 最近使った順」で返す
+function frequentValues(kind, key, limit = 8) {
+  const m = new Map();
+  for (const x of state[kind]) {
+    const v = String(x[key] ?? '').trim();
+    if (!v) continue;
+    const e = m.get(v) || { n: 0, t: 0 };
+    e.n += 1;
+    e.t = Math.max(e.t, x.updatedAt || 0);
+    m.set(v, e);
+  }
+  return [...m].sort((a, b) => b[1].n - a[1].n || b[1].t - a[1].t).slice(0, limit).map(([v]) => v);
+}
+
 function suggestions(kind, key, presets = []) {
   const vals = state[kind].map((x) => x[key]).filter(Boolean);
   return [...new Set([...vals, ...presets])];
@@ -353,9 +367,16 @@ function viewRecipeForm(id, beanIdForNew) {
   const bean = findBean(draft.beanId);
   if (!bean) return notFound();
 
-  const text = (k, label, list, ph = '') => `<label class="field"><span>${label}</span>
-    <input name="${k}" value="${esc(draft[k] ?? '')}" placeholder="${esc(ph)}" ${list ? `list="dl-${k}" autocomplete="off"` : ''}>
-    ${list ? datalist(`dl-${k}`, suggestions('recipes', k)) : ''}</label>`;
+  // list=true の欄は、過去の入力をタップで入れられるボタン（よく使う順）を下に並べる
+  const text = (k, label, list, ph = '') => {
+    const field = `<label class="field"><span>${label}</span>
+      <input name="${k}" value="${esc(draft[k] ?? '')}" placeholder="${esc(ph)}" ${list ? `list="dl-${k}" autocomplete="off"` : ''}>
+      ${list ? datalist(`dl-${k}`, suggestions('recipes', k)) : ''}</label>`;
+    if (!list) return field;
+    const used = frequentValues('recipes', k);
+    return `<div class="field-wrap">${field}${used.length ? `<div class="quick" data-for="${k}">${used.map((v) =>
+      `<button type="button" data-fill="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''}</div>`;
+  };
   const numberField = (k, label, suffix, prefix = '', step = 'any') => `<label class="field"><span>${label}</span>
     <div class="with-suffix">${prefix ? `<span>${prefix}</span>` : ''}<input name="${k}" type="number" inputmode="decimal" step="${step}" min="0" value="${esc(draft[k] ?? '')}"><span>${suffix}</span></div></label>`;
 
@@ -518,6 +539,21 @@ function viewRecipeForm(id, beanIdForNew) {
     renderPours();
   };
   el('dose').oninput = el('ratio').oninput = updateCalc;
+
+  // 過去の入力ボタン：タップで欄に入れる。入力中の値と同じボタンは強調表示
+  const markQuick = (k) => form.querySelectorAll(`.quick[data-for="${k}"] button`).forEach((b) =>
+    b.classList.toggle('on', b.dataset.fill === el(k).value.trim()));
+  form.querySelectorAll('.quick').forEach((q) => {
+    const k = q.dataset.for;
+    q.onclick = (e) => {
+      const b = e.target.closest('[data-fill]');
+      if (!b) return;
+      el(k).value = b.dataset.fill;
+      markQuick(k);
+    };
+    el(k).addEventListener('input', () => markQuick(k));
+    markQuick(k);
+  });
   const updateTotalTimeHint = () => {
     const s = num(el('totalTime').value);
     document.getElementById('totalTimeHint').textContent = s != null ? fmtTime(s) : '';
