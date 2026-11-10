@@ -209,6 +209,7 @@ textarea { resize: vertical; }
   font-variant-numeric: tabular-nums; border: 1px solid transparent;
 }
 .t-pours li > :not(:first-child) { text-align: right; }
+.t-pours li small { display: block; font-size: .75rem; font-weight: normal; color: var(--muted); }
 .t-pours li.done { opacity: .4; }
 .t-pours li.current { background: var(--surface); border-color: var(--accent); box-shadow: var(--shadow); }
 .t-controls { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }

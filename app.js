@@ -622,7 +622,7 @@ function viewTimer(id) {
       <div class="t-next" id="next"></div>
       <div class="t-bar"><div id="bar"></div></div>
       <ol class="t-pours" id="list">${pours.map((p, i) => `<li data-i="${i}">
-        <span>${p.n}投目</span><span>${fmtTime(p.sec)}</span><span>+${fmtG(p.g)}</span><b>${fmtG(p.cum)}</b></li>`).join('')}</ol>
+        <span>${p.n}投目</span><span>${fmtTime(p.sec)}</span><span>+${fmtG(p.g)}<small>${r1(num(p.pct) || 0)}%</small></span><b>${fmtG(p.cum)}<small>${r1(p.cumPct)}%</small></b></li>`).join('')}</ol>
       <div class="t-controls">
         <button class="btn" id="reset">リセット</button>
         <button class="btn primary" id="toggle">スタート</button>
@@ -658,8 +658,8 @@ function viewTimer(id) {
     $('clock').textContent = fmtTime(e);
     const cur = pours[idx];
     $('now').innerHTML = cur
-      ? `${cur.n}投目　<b>累計 ${fmtG(cur.cum)}</b> まで`
-      : (pours.length ? `スタートで 1投目（${fmtG(pours[0]?.cum || 0)}）` : '注湯が登録されていません');
+      ? `${cur.n}投目　<b>累計 ${fmtG(cur.cum)}</b>（${r1(cur.cumPct)}%）まで`
+      : (pours.length ? `スタートで 1投目（${fmtG(pours[0]?.cum || 0)} · ${r1(pours[0]?.cumPct || 0)}%）` : '注湯が登録されていません');
     $('next').textContent = next
       ? (cur ? `次の${next.n}投目まで ${Math.ceil(remain)}秒` : '')
       : end ? (e < end ? `落ち切りまで ${Math.ceil(end - e)}秒` : '抽出終了 ☕') : (cur ? '落ち切りを待ちます' : '');
